@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify
 import pandas as pd
 import os 
-from schemas.company_schemas import CompanyCreate, CompanyResponse
+from schemas.company_schemas import CompanyCreate, CompanyResponse,CompanyDelete
 from werkzeug.utils import secure_filename
 from models.entities.Company import Company
 from pydantic import ValidationError
@@ -112,4 +112,68 @@ def all_companies():
     
 
 
+@company_routes.route('/find-company/<int:company_id>', methods=['GET'])
+
+def findCompany(company_id):
+    company = Company.query.get(company_id)
+    
+    if company is None: 
+        return jsonify({"error": "Empresa no encontrada"}), 404
+    
+    try:
+        company_data = CompanyResponse.model_validate(company)
+        return jsonify(company_data.model_dump())
+    except ValidationError as e:
+        print(f"Error al validar datos de la empresa: {e}")
+        return jsonify({"error": "Error al validar datos de la empresa"}), 500
+    
+@company_routes.route('/update-company/<int:company_id>', methods=['PUT'])
+def UpdateCompany(company_id):
+    data = request.get_json()
+
+    company = Company.query.get(company_id)
+    if not company:
+        return jsonify({"error": "Empresa no encontrada"}), 404
+    
+    if 'nit' in data:
+        company.nit = data['nit']
+    if 'name_company' in data:
+        company.name_company = data['name_company']
+    if 'sector' in data:
+        company.sector = data['sector']
+    
+    try: 
+        db.session.add(company)
+        db.session.commit()
+        return jsonify({"message": "Empresa actualizada correctamente", "updated_fields":{key: data[key] for key in data if key in ["nit", "name_company", "sector"]}})
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error al actualizar empresa: {e}")
+        return jsonify({"error": "Error al actualizar empresa"}), 400
+
+@company_routes.route('/delete-company/<int:company_id>', methods = ['DELETE'])
+
+def deleteCompany(company_id):
+    
+    company = Company.query.get(company_id)
+    
+    if not company:
+        return jsonify({"error": "Empresa no encontrada"}), 404
+    
+    company_id_delete = company.id
+    
+    try: 
+        db.session.delete(company)
+        db.session.commit()
+        
+        response = CompanyDelete(
+            message="Empresa eliminada correctamente",
+            delete_company_id=company_id_delete
+        )
+        return jsonify(response.model_dump()), 200
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error al eliminar empresa: {e}")
+        return jsonify({"error": "Error al eliminar empresa"}), 400
+    
     
